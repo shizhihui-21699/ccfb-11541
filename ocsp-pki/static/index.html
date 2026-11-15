@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PKI 证书状态管理台</title>
+<style>
+:root {
+  --bg: #f6f7f9; --fg: #1c2430; --muted: #667085; --card: #ffffff;
+  --line: #e4e7ec; --accent: #2563eb; --good: #067647; --good-bg: #ecfdf3;
+  --rev: #b42318; --rev-bg: #fef3f2; --hold: #b54708; --hold-bg: #fffaeb;
+  --code-bg: #f2f4f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1318; --fg: #e6e9ee; --muted: #98a2b3; --card: #171c23;
+    --line: #262d38; --accent: #6ea0ff; --good: #6ce9a6; --good-bg: #10301f;
+    --rev: #fda29b; --rev-bg: #3a1a17; --hold: #fec84b; --hold-bg: #3a2a10;
+    --code-bg: #1f252e; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+}
+.wrap { max-width: 1080px; margin: 0 auto; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 22px 0 10px; }
+.sub { color: var(--muted); font-size: 13px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px;
+}
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-size: 22px; font-weight: 650; margin-top: 2px; word-break: break-all; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 10px; }
+input, button, select {
+  font: inherit; color: var(--fg); background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+}
+input { min-width: 260px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+table { width: 100%; border-collapse: collapse; background: var(--card);
+        border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line);
+         vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge.good { color: var(--good); background: var(--good-bg); }
+.badge.revoked { color: var(--rev); background: var(--rev-bg); }
+.badge.hold { color: var(--hold); background: var(--hold-bg); }
+.muted { color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } input { min-width: 0; flex: 1; } }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px; overflow-x: auto; font-size: 12px; margin: 0; }
+a { color: var(--accent); }
+.pill { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); }
+.error { color: var(--rev); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PKI 证书状态管理台</h1>
+    <span class="sub" id="clock"></span>
+  </header>
+
+  <div class="cards" id="stats"></div>
+
+  <h2>证书查询</h2>
+  <div class="toolbar">
+    <input id="q" placeholder="输入序列号（hex，可带 0x）或 CN 关键字，回车查询">
+    <button class="primary" id="btnQuery">查询</button>
+    <button id="btnAll">全部证书</button>
+    <label class="sub" style="align-self:center">
+      <input type="checkbox" id="auto" style="min-width:0;width:auto;margin-right:6px">5 秒自动刷新
+    </label>
+  </div>
+  <div id="detail"></div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>序列号</th><th>Subject</th><th>OCSP 状态</th><th>原因</th>
+        <th>有效期至</th><th>CRL 水位</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="muted">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>CRL 发布</h2>
+  <div class="grid2">
+    <pre id="crlInfo">加载中…</pre>
+    <pre id="cacheInfo">加载中…</pre>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function badge(rec) {
+  if (rec.status !== "revoked") return '<span class="badge good">good</span>';
+  if (rec.reason === "certificate_hold")
+    return '<span class="badge hold">revoked · hold</span>';
+  return '<span class="badge revoked">revoked</span>';
+}
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadStats() {
+  const s = await getJSON("/api/stats");
+  const cards = [
+    ["缓存条目", s.cache_entries],
+    ["请求总数", s.responder.requests_total],
+    ["预签名命中", s.responder.presigned_hits],
+    ["实时签名(nonce/兜底)", s.responder.realtime_signed],
+    ["nonce 请求", s.responder.nonce_requests],
+    ["未知 serial", s.responder.unknown_serials],
+    ["错误请求", s.responder.bad_requests],
+    ["非本 CA 请求", s.responder.wrong_issuer],
+  ];
+  $("stats").innerHTML = cards.map(([k, v]) =>
+    `<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+}
+
+async function loadCerts(query) {
+  const url = query ? `/api/certs?serial=${encodeURIComponent(query)}` : "/api/certs";
+  try {
+    const data = await getJSON(url);
+    const items = data.certificates || [data];
+    if (!items.length || items.some(x => x.error)) {
+      $("rows").innerHTML = `<tr><td colspan="6" class="error">未找到匹配证书</td></tr>`;
+      $("detail").innerHTML = "";
+      return;
+    }
+    $("rows").innerHTML = items.map(r => `<tr>
+      <td class="mono">${esc(r.serial_hex)}</td>
+      <td>${esc(r.subject)}</td>
+      <td>${badge(r)}</td>
+      <td class="mono">${esc(r.reason || "—")}</td>
+      <td class="mono">${esc((r.not_after || "").replace("T", " ").slice(0, 19))}</td>
+      <td class="pill">change=${r.change_seq ?? "—"} unhold=${r.unhold_seq ?? "—"}</td>
+    </tr>`).join("");
+    $("detail").innerHTML = items.length === 1
+      ? `<pre>${esc(JSON.stringify(items[0], null, 2))}</pre>` : "";
+  } catch (e) {
+    $("rows").innerHTML = `<tr><td colspan="6" class="error">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function loadCRL() {
+  const c = await getJSON("/api/crl");
+  const lines = [
+    `全量 CRLNumber   : ${c.full_seq}`,
+    `增量 CRLNumber   : ${c.delta_seq}`,
+    `全量水位(change) : ${c.last_full_change_seq}`,
+    `全量 URL         : ${c.full_crl_url}`,
+    `增量 URL         : ${c.delta_crl_url}`,
+  ];
+  if (c.full) lines.push("", `[全量] this=${c.full.this_update}`,
+    `       next=${c.full.next_update}`, `       吊销条目=${c.full.revoked_count}`);
+  if (c.delta) lines.push("", `[增量] this=${c.delta.this_update}`,
+    `       next=${c.delta.next_update}`, `       变更条目=${c.delta.revoked_count}`);
+  $("crlInfo").textContent = lines.join("\n");
+
+  const cache = await getJSON("/api/cache");
+  $("cacheInfo").textContent =
+    `预签名缓存（${cache.length} 条，含 sha1/sha256 两套 CertID）\n\n` +
+    cache.map(e => `${e.serial_hex} [${e.hash}] ${e.status}` +
+      (e.reason ? `/${e.reason}` : "") +
+      `\n  next_update=${e.next_update}`).join("\n");
+}
+
+async function refreshAll() {
+  await Promise.all([loadStats(), loadCerts($("q").value.trim()), loadCRL()]);
+  $("clock").textContent = "更新于 " + new Date().toLocaleTimeString();
+}
+
+$("btnQuery").onclick = () => loadCerts($("q").value.trim());
+$("btnAll").onclick = () => { $("q").value = ""; loadCerts(""); };
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") loadCerts($("q").value.trim()); });
+
+let timer = null;
+$("auto").onchange = (e) => {
+  clearInterval(timer);
+  if (e.target.checked) timer = setInterval(refreshAll, 5000);
+};
+refreshAll();
+setInterval(loadStats, 10000);
+</script>
+</body>
+</html>

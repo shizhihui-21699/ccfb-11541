@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "updated_at": "2026-11-15T20:32:39.797439+00:00",
+  "certificates": [
+    {
+      "serial_hex": "60ba2cdf6b4e1868a5240fa2d15d57b9",
+      "subject": "CN=good.example.com,O=Example Internal,C=CN",
+      "pem_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/good.example.com.cert.pem",
+      "key_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/good.example.com.key.pem",
+      "not_before": "2026-11-15T20:30:11+00:00",
+      "not_after": "2027-11-15T20:32:11+00:00",
+      "issued_at": "2026-11-15T20:32:11.099296+00:00",
+      "status": "good",
+      "revoked_at": null,
+      "reason": null,
+      "change_seq": 3,
+      "unhold_seq": null,
+      "unhold_at": null
+    },
+    {
+      "serial_hex": "69c04882d119f3295d44993257b50175",
+      "subject": "CN=hold.example.com,O=Example Internal,C=CN",
+      "pem_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/hold.example.com.cert.pem",
+      "key_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/hold.example.com.key.pem",
+      "not_before": "2026-11-15T20:30:11+00:00",
+      "not_after": "2027-11-15T20:32:11+00:00",
+      "issued_at": "2026-11-15T20:32:11.245936+00:00",
+      "status": "good",
+      "revoked_at": null,
+      "reason": null,
+      "change_seq": 3,
+      "unhold_seq": null,
+      "unhold_at": null
+    },
+    {
+      "serial_hex": "9c0936950533a6a22b8bb960c2cb8fd5",
+      "subject": "CN=revoke.example.com,O=Example Internal,C=CN",
+      "pem_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/revoke.example.com.cert.pem",
+      "key_path": "/Users/shizhihui/ccfb/runs/11541/workspace/ocsp-pki/pki/certs/revoke.example.com.key.pem",
+      "not_before": "2026-11-15T20:30:11+00:00",
+      "not_after": "2027-11-15T20:32:11+00:00",
+      "issued_at": "2026-11-15T20:32:11.376715+00:00",
+      "status": "revoked",
+      "revoked_at": "2026-11-15T20:32:12.035917+00:00",
+      "reason": "key_compromise",
+      "change_seq": 3,
+      "unhold_seq": null,
+      "unhold_at": null
+    }
+  ]
+}
